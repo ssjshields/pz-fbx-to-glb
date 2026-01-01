@@ -79,7 +79,6 @@ for %%F in ("%INPUT%\*.fbx") do (
 )
 
 if %FOUND%==0 (
-    echo.
     echo No FBX files found in:
     echo %INPUT%
 )
