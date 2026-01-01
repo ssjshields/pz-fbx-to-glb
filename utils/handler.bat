@@ -73,7 +73,7 @@ for %%F in ("%INPUT%\*.fbx") do (
     echo Converting %%~nxF to %%~nF.glb
     REM "%BLENDER%" -b -P "%SCRIPT%" -- "%%F" "%OUTPUT%\%%~nF.glb"
 	REM "%BLENDER%" -b --log-level 0 -P "%SCRIPT%" -- "%%F" "%OUTPUT%\%%~nF.glb"
-	"%BLENDER%" -b -P "%SCRIPT%" -- "%%F" "%OUTPUT%\%%~nF.glb" ^
+	"%BLENDER%" -b -P "%SCRIPT%" -- "%%F" "%ROOT%\output\%%~nF.glb" ^
   2>&1 | findstr /V /C:"INFO Draco mesh compression is available"
 
 )
