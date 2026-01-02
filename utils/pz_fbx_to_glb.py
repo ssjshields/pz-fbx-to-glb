@@ -3,9 +3,18 @@ import sys
 import os
 import inspect
 
-# --------------------------------------------------
+# ==================================================
+# HARD LOCK: Blender 4.2 LTS ONLY
+# ==================================================
+ver = bpy.app.version
+if not (ver[0] == 4 and ver[1] == 2):
+    print(f"ERROR: Unsupported Blender version {ver}")
+    print("This tool is LOCKED to Blender 4.2 LTS for Project Zomboid.")
+    sys.exit(1)
+
+# ==================================================
 # Parse CLI args
-# --------------------------------------------------
+# ==================================================
 if "--" not in sys.argv:
     print("ERROR: Missing '--' separator")
     sys.exit(1)
@@ -22,7 +31,6 @@ output_glb = os.path.abspath(argv[1])
 
 if not os.path.isfile(input_fbx):
     print("ERROR: Input FBX does not exist")
-    print(input_fbx)
     sys.exit(1)
 
 os.makedirs(os.path.dirname(output_glb), exist_ok=True)
@@ -30,136 +38,106 @@ os.makedirs(os.path.dirname(output_glb), exist_ok=True)
 print("Input :", input_fbx)
 print("Output:", output_glb)
 
-# --------------------------------------------------
-# Reset Blender
-# --------------------------------------------------
+# ==================================================
+# Reset Blender cleanly
+# ==================================================
 bpy.ops.wm.read_factory_settings(use_empty=True)
-
-# --------------------------------------------------
-# Scene units (meters)
-# --------------------------------------------------
 scene = bpy.context.scene
-scene.unit_settings.system = 'METRIC'
+
+# Force Eevee (Cycles not needed)
+# scene.render.engine = "BLENDER_EEVEE"
+
+# ==================================================
+# Scene units (meters, PZ-safe)
+# ==================================================
+scene.unit_settings.system = "METRIC"
 scene.unit_settings.scale_length = 1.0
 
-# --------------------------------------------------
-# FBX IMPORTER CRASH FIX (LIGHT / CYCLES BUG)
-# --------------------------------------------------
-scene.render.engine = 'BLENDER_EEVEE'
-
-# --------------------------------------------------
-# FBX IMPORTER CRASH FIX (LIGHT / CYCLES BUG)
-# --------------------------------------------------
-scene.render.engine = 'BLENDER_EEVEE'
-
-# Disable Cycles safely across Blender versions
-try:
-    bpy.ops.preferences.addon_disable(module="cycles")
-except Exception:
-    pass
-
-
-# --------------------------------------------------
-# Import FBX (NO animations)
-# --------------------------------------------------
+# ==================================================
+# FBX IMPORT (LOCKED SAFE FLAGS)
+# ==================================================
 bpy.ops.import_scene.fbx(
     filepath=input_fbx,
     use_anim=False,
-    use_custom_props=False
+    use_custom_normals=True,
+    ignore_leaf_bones=True,
+    # use_lights=False,     # 🔒 critical
+    # use_cameras=False,   # 🔒 critical
 )
 
-# --------------------------------------------------
-# Convert CM → M (Project Zomboid FIX)
-# --------------------------------------------------
-for obj in bpy.data.objects:
-    if obj.type == "MESH":
-        obj.scale = (
-            obj.scale[0] * 0.01,
-            obj.scale[1] * 0.01,
-            obj.scale[2] * 0.01,
-        )
+# ==================================================
+# Remove any leftover lights/cameras (paranoia)
+# ==================================================
+for obj in list(bpy.data.objects):
+    if obj.type in {"LIGHT", "CAMERA"}:
+        bpy.data.objects.remove(obj, do_unlink=True)
 
-# --------------------------------------------------
-# Apply scale (CRITICAL)
-# --------------------------------------------------
+mesh_objs = [o for o in bpy.data.objects if o.type == "MESH"]
+if not mesh_objs:
+    print("ERROR: No mesh objects imported")
+    sys.exit(1)
+
+# ==================================================
+# Scale fix (cm → m safety net)
+# ==================================================
+for obj in mesh_objs:
+    if max(obj.dimensions) > 10.0:
+        obj.scale = (0.01, 0.01, 0.01)
+
+# ==================================================
+# Apply transforms
+# ==================================================
 bpy.ops.object.select_all(action="DESELECT")
-for obj in bpy.data.objects:
-    if obj.type == "MESH":
-        obj.select_set(True)
-        bpy.context.view_layer.objects.active = obj
+for obj in mesh_objs:
+    obj.select_set(True)
+    bpy.context.view_layer.objects.active = obj
 
-bpy.ops.object.transform_apply(
-    location=False,
-    rotation=False,
-    scale=True
-)
+bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
 
-# --------------------------------------------------
-# UV KEEP material safety
-# --------------------------------------------------
-for obj in bpy.data.objects:
-    if obj.type != "MESH":
-        continue
-    if not obj.data.uv_layers:
-        continue
-    if obj.data.materials:
-        continue
-
-    mat = bpy.data.materials.new(name="__UV_KEEP__")
+# ==================================================
+# Force visible PZ-safe material
+# ==================================================
+for obj in mesh_objs:
+    mat = bpy.data.materials.new(name="__PZ_MAT__")
     mat.use_nodes = True
 
-    bsdf = mat.node_tree.nodes.get("Principled BSDF")
-    tex = mat.node_tree.nodes.new("ShaderNodeTexImage")
-    tex.interpolation = 'Closest'
+    nodes = mat.node_tree.nodes
+    links = mat.node_tree.links
+    nodes.clear()
 
-    mat.node_tree.links.new(
-        tex.outputs["Color"],
-        bsdf.inputs["Base Color"]
-    )
+    bsdf = nodes.new("ShaderNodeBsdfPrincipled")
+    output = nodes.new("ShaderNodeOutputMaterial")
 
+    bsdf.inputs["Base Color"].default_value = (1, 1, 1, 1)
+    bsdf.inputs["Alpha"].default_value = 1.0
+
+    links.new(bsdf.outputs["BSDF"], output.inputs["Surface"])
+
+    obj.data.materials.clear()
     obj.data.materials.append(mat)
 
-# --------------------------------------------------
-# Safe glTF exporter (version-proof)
-# --------------------------------------------------
-def gltf_export_safe(filepath, **kwargs):
-    op = bpy.ops.export_scene.gltf
-    valid = inspect.signature(op).parameters
+# ==================================================
+# GLTF EXPORT (PZ LOCKED)
+# ==================================================
+bpy.ops.object.select_all(action="DESELECT")
+for obj in mesh_objs:
+    obj.select_set(True)
 
-    filtered = {
-        k: v for k, v in kwargs.items()
-        if k in valid
-    }
-    filtered["filepath"] = filepath
-
-    bpy.ops.export_scene.gltf(**filtered)
-
-# --------------------------------------------------
-# Export GLB (ASSIMP SAFE)
-# --------------------------------------------------
-gltf_export_safe(
+bpy.ops.export_scene.gltf(
     filepath=output_glb,
     export_format="GLB",
-
+    export_materials="EXPORT",
+    export_image_format="NONE",
     export_texcoords=True,
     export_normals=True,
-    export_tangents=False,
-
-    export_materials="NONE",
-    export_image_format="NONE",
-
-    export_shared_accessors=True,
-    export_try_sparse_sk=False,
-    export_try_omit_sparse_sk=False,
-
     export_animations=False,
     export_skins=False,
     export_morph=False,
-    export_extras=False,
-    export_cameras=False,
     export_lights=False,
-
+    export_cameras=False,
     use_selection=True,
     export_yup=True,
-    export_apply=False
+    export_apply=False,
 )
+
+print("SUCCESS: Project Zomboid GLB exported cleanly")
