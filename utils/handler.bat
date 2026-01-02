@@ -52,7 +52,7 @@ if not defined BLENDER (
 REM ECHO START
 echo Original Blender GUI Script: https://github.com/LazySpongie/Project-Zomboid-GLTF-Export-Preset
 echo Blender Installation: %BLENDER%
-echo Supported Blender Versions: 4.5 - 5.x
+echo Required Blender Version: 4.2
 echo.
 
 REM --------------------------------------------
