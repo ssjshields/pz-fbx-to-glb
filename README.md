@@ -5,7 +5,7 @@ A portable CLI tool for converting FBX to GLB for Project Zomboid, with correct 
 2. run "convert.bat" and wait, `*.glb` will be generated in the newly created `output` folder
 
 # Requirements
-Blender 4.5 - 5.x
+Blender 4.2 LTS
 
 # Limitations
 Does not support FBX containing keyframes
