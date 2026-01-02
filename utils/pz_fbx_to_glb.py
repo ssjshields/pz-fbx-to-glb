@@ -43,11 +43,29 @@ scene.unit_settings.system = 'METRIC'
 scene.unit_settings.scale_length = 1.0
 
 # --------------------------------------------------
+# FBX IMPORTER CRASH FIX (LIGHT / CYCLES BUG)
+# --------------------------------------------------
+scene.render.engine = 'BLENDER_EEVEE'
+
+# --------------------------------------------------
+# FBX IMPORTER CRASH FIX (LIGHT / CYCLES BUG)
+# --------------------------------------------------
+scene.render.engine = 'BLENDER_EEVEE'
+
+# Disable Cycles safely across Blender versions
+try:
+    bpy.ops.preferences.addon_disable(module="cycles")
+except Exception:
+    pass
+
+
+# --------------------------------------------------
 # Import FBX (NO animations)
 # --------------------------------------------------
 bpy.ops.import_scene.fbx(
     filepath=input_fbx,
-    use_anim=False
+    use_anim=False,
+    use_custom_props=False
 )
 
 # --------------------------------------------------
@@ -89,8 +107,8 @@ for obj in bpy.data.objects:
 
     mat = bpy.data.materials.new(name="__UV_KEEP__")
     mat.use_nodes = True
-    bsdf = mat.node_tree.nodes.get("Principled BSDF")
 
+    bsdf = mat.node_tree.nodes.get("Principled BSDF")
     tex = mat.node_tree.nodes.new("ShaderNodeTexImage")
     tex.interpolation = 'Closest'
 
