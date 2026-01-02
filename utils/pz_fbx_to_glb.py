@@ -9,7 +9,7 @@ import inspect
 ver = bpy.app.version
 if not (ver[0] == 4 and ver[1] == 2):
     print(f"ERROR: Unsupported Blender version {ver}")
-    print("This tool is LOCKED to Blender 4.2 LTS for Project Zomboid.")
+    print("This tool is LOCKED to Blender 4.2 LTS for use with Project Zomboid.")
     sys.exit(1)
 
 # ==================================================
